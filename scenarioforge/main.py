@@ -12,6 +12,8 @@ Usage:
 from __future__ import annotations
 import argparse
 import sys
+import time
+import webbrowser
 from pathlib import Path
 
 from .config.loader import load_file, load_dict
@@ -59,6 +61,12 @@ def main(argv=None):
     parser.add_argument("--output",   help="File path when --mode file")
     parser.add_argument("--preview",  action="store_true",
                         help="Shorthand for --mode console")
+    parser.add_argument("--no-dashboard", action="store_true",
+                        help="Do not launch the live dashboard server")
+    parser.add_argument("--dashboard-port", type=int, default=8050,
+                        help="Port for the live dashboard server (default 8050)")
+    parser.add_argument("--backend", default="http://localhost:8080",
+                        help="RiskEngine Java backend URL (default http://localhost:8080)")
 
     args = parser.parse_args(argv)
 
@@ -99,12 +107,42 @@ def main(argv=None):
     if cfg.output.mode == "kafka":
         print(f"  brokers={cfg.output.brokers}  topic={cfg.output.topic}")
 
+    # Launch the live dashboard server (serves dashboard + proxies the Java API,
+    # avoiding the file:// CORS problem). Skipped for console/preview or --no-dashboard.
+    dashboard_url = None
+    if not args.no_dashboard and cfg.output.mode != "console":
+        try:
+            from .dashboard_server import start_dashboard_server
+            dashboard_url = start_dashboard_server(port=args.dashboard_port, backend=args.backend)
+            print("\n" + "=" * 60)
+            print(f"  📊 Dashboard is LIVE at:  {dashboard_url}")
+            print(f"  🔌 Proxying backend:      {args.backend}")
+            print("=" * 60 + "\n")
+            try:
+                webbrowser.open(dashboard_url)
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[ScenarioForge] Dashboard server could not start: {e}")
+
     sink = build_sink(cfg)
     try:
         run(cfg, sink.send)
     finally:
         sink.flush()
         sink.close()
+
+    # Keep the dashboard alive after the test so the user can inspect results.
+    if dashboard_url:
+        print("\n" + "=" * 60)
+        print(f"  ✅ Test complete. Dashboard still live at: {dashboard_url}")
+        print("  Press Ctrl+C to stop the dashboard server and exit.")
+        print("=" * 60)
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n[ScenarioForge] Dashboard stopped. Bye.")
 
 
 if __name__ == "__main__":

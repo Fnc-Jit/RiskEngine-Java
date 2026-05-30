@@ -30,7 +30,7 @@ _ANOMALY_STANDARD = {
 _ANOMALY_HIGH = {**_ANOMALY_STANDARD, "baseRate": 0.10, "severityMin": 2.0, "severityMax": 6.0}
 _ANOMALY_LOW  = {**_ANOMALY_STANDARD, "baseRate": 0.01}
 
-_OUTPUT_KAFKA = {"mode": "kafka", "topic": "market-events", "brokers": "localhost:9092"}
+_OUTPUT_KAFKA = {"mode": "kafka", "topic": "market-events", "brokers": "localhost:9094"}
 
 
 TEMPLATES: Dict[str, Dict[str, Any]] = {

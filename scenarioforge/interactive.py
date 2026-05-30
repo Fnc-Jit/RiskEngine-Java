@@ -122,7 +122,7 @@ def run_wizard() -> Dict[str, Any]:
     mode = _ask_choice("Output mode", ["kafka", "file", "console"], out.get("mode", "kafka"))
     out["mode"] = mode
     if mode == "kafka":
-        out["brokers"] = _ask("Kafka brokers", out.get("brokers", "localhost:9092"))
+        out["brokers"] = _ask("Kafka brokers", out.get("brokers", "localhost:9094"))
         out["topic"]   = _ask("Kafka topic", out.get("topic", "market-events"))
     elif mode == "file":
         out["filePath"] = _ask("Output file path", out.get("filePath") or "events.jsonl")

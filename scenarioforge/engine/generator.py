@@ -24,6 +24,14 @@ def run(cfg: ScenarioConfig, sink: Callable[[Dict], None]) -> None:
         cfg:  Validated ScenarioConfig.
         sink: Callable that receives each event dict (Kafka, file, console).
     """
+    # Optional dashboard status hooks (no-op if dashboard server not running)
+    try:
+        from ..dashboard_server import mark_running, update_progress, mark_complete
+    except Exception:
+        def mark_running(*a, **k): pass
+        def update_progress(*a, **k): pass
+        def mark_complete(*a, **k): pass
+
     rng = random.Random(cfg.seed)
 
     # Per-ticker simulators
@@ -49,6 +57,8 @@ def run(cfg: ScenarioConfig, sink: Callable[[Dict], None]) -> None:
     seq = 0
     start_wall = time.monotonic()
     batch_start = start_wall
+
+    mark_running(cfg.scenario_name, cfg.target_eps, duration_sec, max_events)
 
     while True:
         # Stop conditions
@@ -102,6 +112,9 @@ def run(cfg: ScenarioConfig, sink: Callable[[Dict], None]) -> None:
         sink(event)
         seq += 1
 
+        if seq % 50 == 0:
+            update_progress(seq)
+
         # Rate control — sleep to maintain target EPS
         expected_wall = start_wall + seq * interval
         sleep_time = expected_wall - time.monotonic()
@@ -110,5 +123,6 @@ def run(cfg: ScenarioConfig, sink: Callable[[Dict], None]) -> None:
 
     elapsed_total = time.monotonic() - start_wall
     actual_eps = seq / elapsed_total if elapsed_total > 0 else 0
+    mark_complete(seq, round(actual_eps, 1))
     print(f"[ScenarioForge] Done — {seq} events in {elapsed_total:.1f}s "
           f"({actual_eps:.1f} eps actual)")

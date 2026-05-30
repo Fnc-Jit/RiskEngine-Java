@@ -768,6 +768,13 @@
 
     <!-- Main Content -->
     <div class="container">
+        <!-- Scenario status banner (updated from /scenario-status) -->
+        <div id="scenario-banner" style="display:none; margin-bottom:16px; padding:14px 18px;
+             border-radius:8px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:12px;">
+            <span id="scenario-banner-icon"></span>
+            <span id="scenario-banner-text"></span>
+            <span id="scenario-banner-detail" style="font-weight:400; color:inherit; opacity:0.85;"></span>
+        </div>
         <!-- Overview Tab -->
         <div id="overview" class="content-section active">
             <div class="kpi-row">
@@ -1333,8 +1340,12 @@
 
     <script>
         // ─── Configuration ────────────────────────────────────────────────────────
-        const API_BASE = 'http://localhost:8080';
-        const WS_URL   = 'ws://localhost:8080/ws/dashboard';
+        // When served by the ScenarioForge dashboard server, API calls are same-origin
+        // (the server proxies to the Java backend). This avoids file:// CORS issues.
+        const API_BASE = (location.protocol === 'file:') ? 'http://localhost:8080' : '';
+        const WS_URL = (location.protocol === 'file:')
+            ? 'ws://localhost:8080/ws/dashboard'
+            : ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/dashboard');
         const MAX_CHART_POINTS = 60;   // keep last 60 data points on charts
         const FEED_SIZE = 50;          // max rows in live signal feed
 
@@ -1827,12 +1838,56 @@
             });
         }
 
+        // ─── Scenario status banner ───────────────────────────────────────────────
+        async function pollScenarioStatus() {
+            // Only available when served by the ScenarioForge dashboard server
+            if (location.protocol === 'file:') return;
+            try {
+                const res = await fetch('/scenario-status');
+                if (!res.ok) return;
+                const s = await res.json();
+                renderBanner(s);
+            } catch (e) { /* server may not expose it — ignore */ }
+        }
+
+        function renderBanner(s) {
+            const banner = document.getElementById('scenario-banner');
+            const icon   = document.getElementById('scenario-banner-icon');
+            const text   = document.getElementById('scenario-banner-text');
+            const detail = document.getElementById('scenario-banner-detail');
+            if (!banner) return;
+
+            if (s.state === 'RUNNING') {
+                banner.style.display = 'flex';
+                banner.style.background = '#fff7ed';
+                banner.style.border = '1px solid #f59e0b';
+                banner.style.color = '#92400e';
+                icon.innerHTML = '<span class="loading" style="background:#f59e0b;"></span>';
+                text.textContent = `Test running — ${s.scenario}`;
+                const target = s.eventsTarget ? ` / ${s.eventsTarget.toLocaleString()} events` : '';
+                detail.textContent = `${(s.eventsSent || 0).toLocaleString()}${target} sent · target ${s.targetEps} eps`;
+            } else if (s.state === 'COMPLETE') {
+                banner.style.display = 'flex';
+                banner.style.background = '#f0fdf4';
+                banner.style.border = '1px solid #22c55e';
+                banner.style.color = '#166534';
+                icon.textContent = '✅';
+                text.textContent = `Test complete — ${s.scenario}`;
+                detail.textContent = `${(s.eventsSent || 0).toLocaleString()} events sent · ${s.actualEps} eps actual`;
+            } else {
+                banner.style.display = 'none';
+            }
+        }
+
         // ─── Bootstrap ────────────────────────────────────────────────────────────
         window.addEventListener('DOMContentLoaded', () => {
             updateLastRefreshTime();
             initPerformanceChart();
             connectWebSocket();
             startPolling(5);   // poll every 5s as REST fallback
+            pollScenarioStatus();
+            setInterval(pollScenarioStatus, 2000);  // banner updates every 2s
         });
+    </script>
 </body>
 </html>
