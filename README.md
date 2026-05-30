@@ -7,7 +7,7 @@
 
 ## Project Architecture & Pipeline Flow
 
-![System Architecture Flow diagram](risk-engine/asset/SystemArchitecture.png)
+![System Architecture Flow diagram](asset/SystemArchitecture.png)
 *A high-level view showing the end-to-end data flow from ScenarioForge to the RiskEngine-Java pipeline and ultimately the Dashboard.*
 
 The system is designed with a clear separation of concerns across ingestion, scoring, storage, and API layers. Data flows continuously from event generation to persistence and visualization in a single streamlined path:
@@ -40,7 +40,7 @@ The system utilizes an **Isolation Forest** anomaly detection model.
 
 ### Data Schema Examples
 
-![JSON Output Log](risk-engine/asset/JsonLog.png)
+![JSON Output Log](asset/JsonLog.png)
 *An example of the structured JSON logs emitted by the pipeline as it processes events.*
 
 **Input: MarketEvent (JSON)**
@@ -74,7 +74,7 @@ The system utilizes an **Isolation Forest** anomaly detection model.
 
 ## Observability & Benchmarking
 
-![Throughput Over Time Graph](risk-engine/asset/ThroughtoutputOvertime.png)
+![Throughput Over Time Graph](asset/ThroughtoutputOvertime.png)
 *A graph showing the pipeline's event throughput over time, demonstrating resilience and backpressure handling under load.*
 
 The project is built with production-grade observability in mind, measuring how the service behaves under increasing load:
@@ -92,7 +92,7 @@ Kafka acts as the central message broker connecting the generator to the scoring
 
 ### Dashboard
 
-![Main Dashboard View](risk-engine/asset/mainDashboard.png)
+![Main Dashboard View](asset/mainDashboard.png)
 *The main view of the real-time observability dashboard, tracking live risk signals as they stream in.*
 
 The Dashboard serves as the real-time observability layer of the pipeline.
@@ -100,16 +100,16 @@ The Dashboard serves as the real-time observability layer of the pipeline.
 - It visualizes critical pipeline health metrics, including throughput (events/sec) and latency percentiles (p50, p95, p99).
 - It graphs the incoming risk signals in real-time, allowing users to visually track regime shifts, anomalies, and elevated risk scores as configured in ScenarioForge.
 
-![Dashboard Result Summary](risk-engine/asset/DashboardResultSummary.png)
+![Dashboard Result Summary](asset/DashboardResultSummary.png)
 *A summary view showing aggregated metrics, recent anomalies, and overall risk distribution.*
 
-![Signals Tabs](risk-engine/asset/SignlasTabs.png)
+![Signals Tabs](asset/SignlasTabs.png)
 *Detailed tabs allowing users to filter risk signals by ticker, status, or anomaly level.*
 
-![Signal Details](risk-engine/asset/SignalDetails.png)
+![Signal Details](asset/SignalDetails.png)
 *Drill-down view of a specific risk signal, displaying raw model scores, latency, and event metadata.*
 
-![System Health Tab](risk-engine/asset/SystemHealthTabDashboard.png)
+![System Health Tab](asset/SystemHealthTabDashboard.png)
 *The system health tab monitoring database connectivity, Kafka status, and ONNX model state.*
 
 ## Docker Use Cases & Commands
@@ -155,14 +155,14 @@ docker compose -f risk-engine/docker-compose.yml up timescaledb kafka riskengine
 
 ### Running ScenarioForge
 
-![ScenarioForge Overview](risk-engine/asset/SenarioForge.png)
+![ScenarioForge Overview](asset/SenarioForge.png)
 *The ScenarioForge tool running, generating synthetic market events according to the defined configurations.*
 
 Once the infrastructure is up and running, you can launch ScenarioForge locally to start generating events and publishing them to Kafka.
 
 #### Interactive Wizard
 
-![ScenarioForge Interactive Wizard](risk-engine/asset/InteractiveTest.png)
+![ScenarioForge Interactive Wizard](asset/InteractiveTest.png)
 *The CLI interactive wizard allowing users to dynamically configure seeds, templates, and EPS on the fly.*
 
 ```bash
@@ -170,7 +170,7 @@ python3 run_scenarioforge.py --interactive
 ```
 The wizard asks for: starting template, scenario name, seed, target EPS, stop mode (duration or max events), optional custom tickers, anomaly rate/severity/labels, and output mode (kafka/file/console). It prints a summary, asks for confirmation, then runs.
 
-![Scenario Summary Output](risk-engine/asset/SenarioSummary.png)
+![Scenario Summary Output](asset/SenarioSummary.png)
 *A printed summary of the generated scenario before execution begins.*
 
 #### Preview Events (No Kafka Needed)
