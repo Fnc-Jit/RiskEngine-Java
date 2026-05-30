@@ -9,7 +9,7 @@ RiskEngine-Java ingests high-volume synthetic market events from Kafka, transfor
 ## Architecture
 
 ```
-Event Generator (Python) → Kafka → Spring Kafka Consumer → Feature Extractor
+ScenarioForge (Python) → Kafka → Spring Kafka Consumer → Feature Extractor
     → ONNX Scoring Service → Risk Signal Mapper → TimescaleDB
     → REST API / WebSocket Dashboard
 ```
@@ -24,7 +24,7 @@ Event Generator (Python) → Kafka → Spring Kafka Consumer → Feature Extract
 | Model Inference | ONNX Runtime 1.18.0 |
 | Time-Series DB | TimescaleDB (PostgreSQL 16) |
 | Latency Tracking | HdrHistogram |
-| Event Generator | Python 3.12 |
+| Event Generator | ScenarioForge (Python 3.12) |
 | Containerization | Docker Compose |
 
 ## Quick Start
@@ -33,6 +33,76 @@ Event Generator (Python) → Kafka → Spring Kafka Consumer → Feature Extract
 - Docker and Docker Compose
 - Java 21 (for local development)
 - Python 3.12+ (for model training and event generation)
+
+## ScenarioForge — Configurable Event Generator
+
+ScenarioForge is the configurable synthetic market event generator that feeds the pipeline. It models price, volume, spread, regime shifts, and labeled anomaly injection — all driven by config, with no code changes required.
+
+### Run from anywhere
+
+Use `run_scenarioforge.py` — it works from any directory, no `PYTHONPATH` needed:
+
+```bash
+# Interactive wizard
+python3 risk-engine/run_scenarioforge.py --interactive
+
+# Or if you're already inside risk-engine/
+python3 run_scenarioforge.py --interactive
+```
+
+#### Interactive wizard (prompts you for every input)
+
+```bash
+python3 run_scenarioforge.py --interactive
+# short form:
+python3 run_scenarioforge.py -i
+```
+
+The wizard asks for: starting template, scenario name, seed, target EPS, stop mode (duration or max events), optional custom tickers, anomaly rate/severity/labels, and output mode (kafka/file/console). It prints a summary, asks for confirmation, then runs.
+
+#### Built-in templates
+
+```bash
+# Preview events in the terminal (no Kafka needed)
+python3 run_scenarioforge.py --template mixed_demo --preview
+
+# Available templates:
+# normal_day | volatile_open | flash_crash | low_liquidity | mixed_demo | benchmark_high_throughput
+```
+
+#### Custom config file
+
+```bash
+python3 run_scenarioforge.py --config scenarioforge/config/scenarios/mixed-demo.json --preview
+python3 run_scenarioforge.py --config /path/to/your-config.json
+```
+
+#### Runtime overrides
+
+```bash
+# Override EPS, duration, seed
+python3 run_scenarioforge.py --template mixed_demo --eps 500 --duration 30 --preview
+
+# Write to a file instead of Kafka
+python3 run_scenarioforge.py --template mixed_demo --mode file --output events.jsonl
+
+# Publish to Kafka (use port 9094 from the host, 9092 inside Docker)
+python3 run_scenarioforge.py --template benchmark_high_throughput --eps 1000 --brokers localhost:9094
+```
+
+| Flag | Description |
+|---|---|
+| `--interactive`, `-i` | Interactive wizard |
+| `--template NAME` | Use a built-in template |
+| `--config PATH` | Load a JSON scenario config |
+| `--preview` | Console preview mode (shorthand for `--mode console`) |
+| `--eps N` | Override target events per second |
+| `--duration N` | Override run duration in seconds |
+| `--seed N` | Override random seed |
+| `--mode kafka\|file\|console` | Override output mode |
+| `--brokers HOST:PORT` | Override Kafka brokers |
+| `--topic NAME` | Override Kafka topic |
+| `--output PATH` | Output file when `--mode file` |
 
 ### 1. Train the ONNX Model
 
@@ -52,7 +122,7 @@ This starts:
 - **Kafka** (KRaft mode) on port 9094
 - **TimescaleDB** on port 5432
 - **RiskEngine** on port 8080
-- **Event Generator** publishing 100 events/sec
+- **Event Generator** (ScenarioForge `mixed_demo` template) publishing to Kafka
 
 ### 3. Verify
 
@@ -97,8 +167,15 @@ risk-engine/
 │   ├── application.yml  # Externalized configuration
 │   └── db/              # SQL migrations
 ├── scripts/
-│   ├── event_generator.py   # Synthetic event publisher
+│   ├── event_generator.py   # Legacy synthetic event publisher
 │   └── train_model.py       # ONNX model training
+├── scenarioforge/           # Configurable event generator (ScenarioForge)
+│   ├── main.py              # CLI entry point (--interactive, --template, --config)
+│   ├── interactive.py       # Interactive wizard
+│   ├── templates.py         # Built-in scenario templates
+│   ├── config/              # Loader, validator, schema, sample scenarios
+│   ├── engine/              # Price/volume/spread simulators, regimes, anomalies
+│   └── output/              # Kafka / file / console sinks
 ├── model/               # ONNX model and golden vectors
 ├── docker-compose.yml   # Full local stack
 ├── Dockerfile           # Multi-stage Java build

@@ -1,0 +1,31 @@
+{
+  "scenarioName": "benchmark_high_throughput",
+  "seed": 42,
+  "targetEps": 1000,
+  "durationSec": 300,
+  "tickers": {
+    "AAPL": {"startPrice": 210.0, "baseVolatility": 0.012, "avgVolume": 120000, "avgSpread": 0.03},
+    "MSFT": {"startPrice": 420.0, "baseVolatility": 0.011, "avgVolume": 90000,  "avgSpread": 0.03},
+    "GOOG": {"startPrice": 175.0, "baseVolatility": 0.013, "avgVolume": 70000,  "avgSpread": 0.04},
+    "TSLA": {"startPrice": 260.0, "baseVolatility": 0.025, "avgVolume": 200000, "avgSpread": 0.06},
+    "NVDA": {"startPrice": 130.0, "baseVolatility": 0.022, "avgVolume": 180000, "avgSpread": 0.05},
+    "AMZN": {"startPrice": 185.0, "baseVolatility": 0.014, "avgVolume": 80000,  "avgSpread": 0.04},
+    "JPM":  {"startPrice": 200.0, "baseVolatility": 0.010, "avgVolume": 60000,  "avgSpread": 0.04},
+    "GS":   {"startPrice": 463.0, "baseVolatility": 0.014, "avgVolume": 40000,  "avgSpread": 0.05}
+  },
+  "regimeSchedule": [
+    {"name": "normal", "durationSec": 300, "volMultiplier": 1.0, "volumeMultiplier": 1.0, "spreadMultiplier": 1.0, "anomalyMultiplier": 1.0, "directionalBias": 0.0}
+  ],
+  "anomalyConfig": {
+    "baseRate": 0.03,
+    "types": ["price_spike", "price_crash", "volume_spike", "spread_blowout", "combined_stress"],
+    "severityMin": 1.5,
+    "severityMax": 4.0,
+    "emitLabels": true
+  },
+  "output": {
+    "mode": "kafka",
+    "topic": "market-events",
+    "brokers": "localhost:9092"
+  }
+}

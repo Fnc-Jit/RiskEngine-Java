@@ -80,17 +80,13 @@ services:
       retries: 10
       start_period: 60s
 
-  # --- Event Generator ---
+  # --- ScenarioForge Event Generator ---
   event-generator:
     build:
-      context: ./scripts
-      dockerfile: Dockerfile.generator
+      context: ./scenarioforge
+      dockerfile: Dockerfile
     container_name: riskengine-generator
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TOPIC: market-events
-      EVENTS_PER_SECOND: 100
-      SEED: 42
+    command: ["--template", "mixed_demo", "--brokers", "kafka:9092"]
     depends_on:
       kafka:
         condition: service_healthy
