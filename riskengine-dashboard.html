@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RiskEngine Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            line-height: 1.5;
+        }
+
+        /* Navigation */
+        .navbar {
+            position: sticky;
+            top: 0;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e0e0e0;
+            z-index: 100;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .navbar-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            align-items: center;
+            height: 60px;
+        }
+
+        .navbar-brand {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-right: 40px;
+            letter-spacing: -0.5px;
+        }
+
+        .navbar-nav {
+            display: flex;
+            list-style: none;
+            gap: 0;
+            flex: 1;
+        }
+
+        .nav-item {
+            border: none;
+            background: none;
+            padding: 20px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .nav-item:hover {
+            color: #1a1a1a;
+            background-color: #f5f5f5;
+        }
+
+        .nav-item.active {
+            color: #1a1a1a;
+            border-bottom-color: #0066cc;
+        }
+
+        /* Main Content */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        /* KPI Cards */
+        .kpi-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .kpi-card:hover {
+            border-color: #0066cc;
+            box-shadow: 0 2px 8px rgba(0, 102, 204, 0.1);
+        }
+
+        .kpi-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .kpi-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a1a1a;
+            font-variant-numeric: tabular-nums;
+            margin-bottom: 8px;
+        }
+
+        .kpi-delta {
+            font-size: 12px;
+            font-weight: 500;
+            color: #666;
+        }
+
+        .kpi-delta.positive {
+            color: #22c55e;
+        }
+
+        .kpi-delta.negative {
+            color: #ef4444;
+        }
+
+        .kpi-delta.warning {
+            color: #f59e0b;
+        }
+
+        /* Charts */
+        .chart-container {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .chart-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #666;
+            transition: opacity 0.2s ease;
+        }
+
+        .legend-item:hover {
+            opacity: 0.7;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        .chart-canvas {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Tables */
+        .table-container {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .table-header {
+            padding: 16px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .table-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .table-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-input {
+            padding: 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 13px;
+            background: #ffffff;
+        }
+
+        .filter-select {
+            padding: 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 13px;
+            background: #ffffff;
+            cursor: pointer;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background-color: #f9f9f9;
+            border-bottom: 1px solid #e0e0e0;
+            position: sticky;
+            top: 60px;
+        }
+
+        th {
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th:hover {
+            background-color: #f0f0f0;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tbody tr {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-healthy {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .status-warning {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-critical {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-degraded {
+            background-color: #fef08a;
+            color: #713f12;
+        }
+
+        .risk-score {
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+        }
+
+        .risk-score.high {
+            color: #ef4444;
+        }
+
+        .risk-score.medium {
+            color: #f59e0b;
+        }
+
+        .risk-score.low {
+            color: #22c55e;
+        }
+
+        /* Buttons */
+        button {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background-color: #f5f5f5;
+            border-color: #0066cc;
+            color: #0066cc;
+        }
+
+        button:active {
+            background-color: #0066cc;
+            color: #ffffff;
+            border-color: #0066cc;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background-color: #0066cc;
+            color: #ffffff;
+            border-color: #0066cc;
+        }
+
+        .btn-primary:hover {
+            background-color: #0052a3;
+            border-color: #0052a3;
+        }
+
+        /* Modal / Drawer */
+        .drawer {
+            position: fixed;
+            right: -400px;
+            top: 0;
+            width: 400px;
+            height: 100vh;
+            background: #ffffff;
+            border-left: 1px solid #e0e0e0;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+            z-index: 200;
+            transition: right 0.3s ease;
+            overflow-y: auto;
+        }
+
+        .drawer.open {
+            right: 0;
+        }
+
+        .drawer-header {
+            padding: 16px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .drawer-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .drawer-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .drawer-content {
+            padding: 16px;
+        }
+
+        .drawer-field {
+            margin-bottom: 16px;
+        }
+
+        .drawer-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .drawer-value {
+            font-size: 14px;
+            color: #1a1a1a;
+            word-break: break-all;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: #f9f9f9;
+            padding: 8px;
+            border-radius: 3px;
+        }
+
+        /* Overlay */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 150;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Filters */
+        .filters-bar {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 16px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .filter-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+        }
+
+        /* Health Status Grid */
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .health-block {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 16px;
+        }
+
+        .health-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .health-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .health-detail {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        /* System Map */
+        .system-map {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 24px;
+            margin-bottom: 24px;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .map-node {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100px;
+            height: 60px;
+            background: #f0f0f0;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            margin: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            padding: 8px;
+        }
+
+        .map-node:hover {
+            background: #e8f0ff;
+            border-color: #0066cc;
+        }
+
+        .map-node.healthy {
+            border-color: #22c55e;
+            background: #f0fdf4;
+        }
+
+        .map-node.degraded {
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+
+        .map-node.down {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        /* Settings */
+        .settings-form {
+            background: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 24px;
+            max-width: 500px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 8px;
+        }
+
+        .form-description {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 13px;
+            background: #ffffff;
+        }
+
+        .form-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .toggle-switch.on {
+            background: #22c55e;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #ffffff;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: left 0.2s ease;
+        }
+
+        .toggle-switch.on::after {
+            left: 22px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state-text {
+            font-size: 14px;
+        }
+
+        /* Loading State */
+        .loading {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: #0066cc;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .refresh-indicator {
+            font-size: 12px;
+            color: #666;
+            margin-left: 8px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .navbar-container {
+                padding: 0 12px;
+            }
+
+            .navbar-brand {
+                margin-right: 20px;
+                font-size: 16px;
+            }
+
+            .nav-item {
+                padding: 16px 12px;
+                font-size: 12px;
+            }
+
+            .container {
+                padding: 12px;
+            }
+
+            .kpi-row {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                gap: 12px;
+            }
+
+            .kpi-value {
+                font-size: 20px;
+            }
+
+            .drawer {
+                width: 100%;
+                right: -100%;
+            }
+
+            .health-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 8px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-brand">RiskEngine</div>
+            <ul class="navbar-nav">
+                <button class="nav-item active" data-tab="overview">Overview</button>
+                <button class="nav-item" data-tab="signals">Signals</button>
+                <button class="nav-item" data-tab="performance">Performance</button>
+                <button class="nav-item" data-tab="health">System Health</button>
+                <button class="nav-item" data-tab="settings">Settings</button>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Overview Tab -->
+        <div id="overview" class="content-section active">
+            <div class="kpi-row">
+                <div class="kpi-card" onclick="showSignalDetail('EVT-001')">
+                    <div class="kpi-label">Total Events Consumed</div>
+                    <div class="kpi-value">1,245,680</div>
+                    <div class="kpi-delta positive">↑ 2.3% from yesterday</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Events Scored</div>
+                    <div class="kpi-value">1,243,920</div>
+                    <div class="kpi-delta positive">↑ 2.1% from yesterday</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Failed Events</div>
+                    <div class="kpi-value">1,760</div>
+                    <div class="kpi-delta negative">↑ 0.2% from yesterday</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Current Throughput</div>
+                    <div class="kpi-value">145.2</div>
+                    <div class="kpi-delta">events/sec</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">P99 Latency</div>
+                    <div class="kpi-value">234</div>
+                    <div class="kpi-delta warning">↑ 12ms from yesterday</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">DB Write Success Rate</div>
+                    <div class="kpi-value">99.86%</div>
+                    <div class="kpi-delta positive">↑ 0.04% from yesterday</div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">Performance Metrics</div>
+                    <div class="chart-controls">
+                        <button onclick="refreshMetrics()">Refresh</button>
+                        <span class="refresh-indicator">Last updated: <span id="last-update">just now</span></span>
+                    </div>
+                </div>
+                <div class="chart-canvas">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+                <div class="chart-legend">
+                    <div class="legend-item" onclick="toggleSeries('throughput')">
+                        <div class="legend-color" style="background: #0066cc;"></div>
+                        <span>Throughput (events/sec)</span>
+                    </div>
+                    <div class="legend-item" onclick="toggleSeries('p50')">
+                        <div class="legend-color" style="background: #22c55e;"></div>
+                        <span>P50 Latency</span>
+                    </div>
+                    <div class="legend-item" onclick="toggleSeries('p95')">
+                        <div class="legend-color" style="background: #f59e0b;"></div>
+                        <span>P95 Latency</span>
+                    </div>
+                    <div class="legend-item" onclick="toggleSeries('p99')">
+                        <div class="legend-color" style="background: #ef4444;"></div>
+                        <span>P99 Latency</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <div class="table-header">
+                    <div class="table-title">Latest Signals Preview</div>
+                    <div class="table-controls">
+                        <button onclick="navigateTab('signals')">View All</button>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Ticker</th>
+                            <th>Risk Score</th>
+                            <th>Label</th>
+                            <th>Latency (ms)</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="overview-signals">
+                        <tr onclick="showSignalDetail('EVT-001')">
+                            <td>2026-05-30 14:32:15</td>
+                            <td>AAPL</td>
+                            <td class="risk-score high">0.87</td>
+                            <td><span class="status-badge status-critical">Critical</span></td>
+                            <td>187</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                        </tr>
+                        <tr onclick="showSignalDetail('EVT-002')">
+                            <td>2026-05-30 14:32:10</td>
+                            <td>MSFT</td>
+                            <td class="risk-score medium">0.62</td>
+                            <td><span class="status-badge status-warning">Elevated</span></td>
+                            <td>156</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                        </tr>
+                        <tr onclick="showSignalDetail('EVT-003')">
+                            <td>2026-05-30 14:32:05</td>
+                            <td>GOOGL</td>
+                            <td class="risk-score low">0.23</td>
+                            <td><span class="status-badge status-healthy">Normal</span></td>
+                            <td>142</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                        </tr>
+                        <tr onclick="showSignalDetail('EVT-004')">
+                            <td>2026-05-30 14:32:00</td>
+                            <td>TSLA</td>
+                            <td class="risk-score high">0.91</td>
+                            <td><span class="status-badge status-critical">Critical</span></td>
+                            <td>203</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                        </tr>
+                        <tr onclick="showSignalDetail('EVT-005')">
+                            <td>2026-05-30 14:31:55</td>
+                            <td>AMZN</td>
+                            <td class="risk-score low">0.31</td>
+                            <td><span class="status-badge status-healthy">Normal</span></td>
+                            <td>168</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Signals Tab -->
+        <div id="signals" class="content-section">
+            <div class="table-container">
+                <div class="table-header">
+                    <div class="table-title">Risk Signals</div>
+                    <div class="table-controls">
+                        <button onclick="refreshSignals()">Refresh</button>
+                        <button onclick="resetFilters()">Reset Filters</button>
+                        <button onclick="exportCSV()">Export CSV</button>
+                    </div>
+                </div>
+
+                <div class="filters-bar">
+                    <div class="filter-group">
+                        <label class="filter-label">Ticker:</label>
+                        <input type="text" id="ticker-filter" class="filter-input" placeholder="e.g., AAPL" onchange="applyFilters()">
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Label:</label>
+                        <select id="label-filter" class="filter-select" onchange="applyFilters()">
+                            <option value="">All</option>
+                            <option value="critical">Critical</option>
+                            <option value="elevated">Elevated</option>
+                            <option value="normal">Normal</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Status:</label>
+                        <select id="status-filter" class="filter-select" onchange="applyFilters()">
+                            <option value="">All</option>
+                            <option value="processed">Processed</option>
+                            <option value="failed">Failed</option>
+                            <option value="pending">Pending</option>
+                        </select>
+                    </div>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('event-id')">Event ID ↕</th>
+                            <th onclick="sortTable('timestamp')">Timestamp ↕</th>
+                            <th onclick="sortTable('ticker')">Ticker ↕</th>
+                            <th onclick="sortTable('raw-score')">Raw Score ↕</th>
+                            <th onclick="sortTable('risk-score')">Risk Score ↕</th>
+                            <th>Label</th>
+                            <th onclick="sortTable('latency')">Latency (ms) ↕</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="signals-table">
+                        <tr>
+                            <td>EVT-001</td>
+                            <td>2026-05-30 14:32:15</td>
+                            <td>AAPL</td>
+                            <td class="risk-score">0.92</td>
+                            <td class="risk-score high">0.87</td>
+                            <td><span class="status-badge status-critical">Critical</span></td>
+                            <td>187</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                            <td><button onclick="showSignalDetail('EVT-001')">Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>EVT-002</td>
+                            <td>2026-05-30 14:32:10</td>
+                            <td>MSFT</td>
+                            <td class="risk-score">0.68</td>
+                            <td class="risk-score medium">0.62</td>
+                            <td><span class="status-badge status-warning">Elevated</span></td>
+                            <td>156</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                            <td><button onclick="showSignalDetail('EVT-002')">Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>EVT-003</td>
+                            <td>2026-05-30 14:32:05</td>
+                            <td>GOOGL</td>
+                            <td class="risk-score">0.28</td>
+                            <td class="risk-score low">0.23</td>
+                            <td><span class="status-badge status-healthy">Normal</span></td>
+                            <td>142</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                            <td><button onclick="showSignalDetail('EVT-003')">Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>EVT-004</td>
+                            <td>2026-05-30 14:32:00</td>
+                            <td>TSLA</td>
+                            <td class="risk-score">0.95</td>
+                            <td class="risk-score high">0.91</td>
+                            <td><span class="status-badge status-critical">Critical</span></td>
+                            <td>203</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                            <td><button onclick="showSignalDetail('EVT-004')">Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>EVT-005</td>
+                            <td>2026-05-30 14:31:55</td>
+                            <td>AMZN</td>
+                            <td class="risk-score">0.35</td>
+                            <td class="risk-score low">0.31</td>
+                            <td><span class="status-badge status-healthy">Normal</span></td>
+                            <td>168</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                            <td><button onclick="showSignalDetail('EVT-005')">Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>EVT-006</td>
+                            <td>2026-05-30 14:31:50</td>
+                            <td>NVDA</td>
+                            <td class="risk-score">0.58</td>
+                            <td class="risk-score medium">0.54</td>
+                            <td><span class="status-badge status-warning">Elevated</span></td>
+                            <td>175</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                            <td><button onclick="showSignalDetail('EVT-006')">Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>EVT-007</td>
+                            <td>2026-05-30 14:31:45</td>
+                            <td>META</td>
+                            <td class="risk-score">0.19</td>
+                            <td class="risk-score low">0.15</td>
+                            <td><span class="status-badge status-healthy">Normal</span></td>
+                            <td>151</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                            <td><button onclick="showSignalDetail('EVT-007')">Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>EVT-008</td>
+                            <td>2026-05-30 14:31:40</td>
+                            <td>AAPL</td>
+                            <td class="risk-score">0.45</td>
+                            <td class="risk-score low">0.41</td>
+                            <td><span class="status-badge status-healthy">Normal</span></td>
+                            <td>164</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                            <td><button onclick="showSignalDetail('EVT-008')">Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>EVT-009</td>
+                            <td>2026-05-30 14:31:35</td>
+                            <td>MSFT</td>
+                            <td class="risk-score">0.88</td>
+                            <td class="risk-score high">0.84</td>
+                            <td><span class="status-badge status-critical">Critical</span></td>
+                            <td>192</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                            <td><button onclick="showSignalDetail('EVT-009')">Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>EVT-010</td>
+                            <td>2026-05-30 14:31:30</td>
+                            <td>GOOGL</td>
+                            <td class="risk-score">0.72</td>
+                            <td class="risk-score medium">0.68</td>
+                            <td><span class="status-badge status-warning">Elevated</span></td>
+                            <td>178</td>
+                            <td><span class="status-badge status-healthy">Processed</span></td>
+                            <td><button onclick="showSignalDetail('EVT-010')">Details</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Performance Tab -->
+        <div id="performance" class="content-section">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">Latency Trend (P50, P95, P99)</div>
+                    <button onclick="refreshPerformance()">Refresh</button>
+                </div>
+                <div class="chart-canvas">
+                    <canvas id="latencyChart"></canvas>
+                </div>
+                <div class="chart-legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #22c55e;"></div>
+                        <span>P50 Latency</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #f59e0b;"></div>
+                        <span>P95 Latency</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #ef4444;"></div>
+                        <span>P99 Latency</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">Throughput Over Time</div>
+                    <button onclick="refreshPerformance()">Refresh</button>
+                </div>
+                <div class="chart-canvas">
+                    <canvas id="throughputChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">Error Rate</div>
+                    <button onclick="refreshPerformance()">Refresh</button>
+                </div>
+                <div class="chart-canvas">
+                    <canvas id="errorChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Health Tab -->
+        <div id="health" class="content-section">
+            <div class="health-grid">
+                <div class="health-block">
+                    <div class="health-header">
+                        <div class="health-title">Spring Boot App</div>
+                        <span class="status-badge status-healthy">Healthy</span>
+                    </div>
+                    <div class="health-detail">Status: Running</div>
+                    <div class="health-detail">Uptime: 45 days, 12 hours</div>
+                    <div class="health-detail">Memory: 1.2 GB / 2 GB</div>
+                    <div class="health-detail">Last Check: 2026-05-30 14:32:10</div>
+                    <button onclick="retryConnection('spring')">Retry Connection</button>
+                </div>
+
+                <div class="health-block">
+                    <div class="health-header">
+                        <div class="health-title">Kafka Consumer</div>
+                        <span class="status-badge status-healthy">Healthy</span>
+                    </div>
+                    <div class="health-detail">Status: Connected</div>
+                    <div class="health-detail">Consumer Group: risk-engine-group</div>
+                    <div class="health-detail">Lag: 0 messages</div>
+                    <div class="health-detail">Last Check: 2026-05-30 14:32:08</div>
+                    <button onclick="retryConnection('kafka')">Retry Connection</button>
+                </div>
+
+                <div class="health-block">
+                    <div class="health-header">
+                        <div class="health-title">TimescaleDB</div>
+                        <span class="status-badge status-healthy">Healthy</span>
+                    </div>
+                    <div class="health-detail">Status: Connected</div>
+                    <div class="health-detail">Connection Pool: 8/10 active</div>
+                    <div class="health-detail">Disk Usage: 45 GB / 100 GB</div>
+                    <div class="health-detail">Last Check: 2026-05-30 14:32:09</div>
+                    <button onclick="retryConnection('db')">Retry Connection</button>
+                </div>
+
+                <div class="health-block">
+                    <div class="health-header">
+                        <div class="health-title">ONNX Model</div>
+                        <span class="status-badge status-healthy">Healthy</span>
+                    </div>
+                    <div class="health-detail">Status: Loaded</div>
+                    <div class="health-detail">Model Version: 2.1.0</div>
+                    <div class="health-detail">Inference Time: 45ms avg</div>
+                    <div class="health-detail">Last Check: 2026-05-30 14:32:07</div>
+                    <button onclick="retryConnection('model')">Retry Connection</button>
+                </div>
+
+                <div class="health-block">
+                    <div class="health-header">
+                        <div class="health-title">REST API</div>
+                        <span class="status-badge status-healthy">Healthy</span>
+                    </div>
+                    <div class="health-detail">Status: Responding</div>
+                    <div class="health-detail">Response Time: 120ms avg</div>
+                    <div class="health-detail">Requests/sec: 145.2</div>
+                    <div class="health-detail">Last Check: 2026-05-30 14:32:06</div>
+                    <button onclick="retryConnection('api')">Retry Connection</button>
+                </div>
+
+                <div class="health-block">
+                    <div class="health-header">
+                        <div class="health-title">System Resources</div>
+                        <span class="status-badge status-healthy">Healthy</span>
+                    </div>
+                    <div class="health-detail">CPU Usage: 32%</div>
+                    <div class="health-detail">Memory Usage: 58%</div>
+                    <div class="health-detail">Network I/O: 450 Mbps</div>
+                    <div class="health-detail">Last Check: 2026-05-30 14:32:05</div>
+                    <button onclick="retryConnection('system')">Refresh</button>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-header">
+                    <div class="chart-title">System Architecture & Data Flow</div>
+                </div>
+                <div class="system-map">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%;">
+                        <div class="map-node healthy" onclick="showNodeInfo('event-gen')">Event Generator</div>
+                        <div style="font-size: 12px; color: #999;">↓ Kafka Topic</div>
+                        <div class="map-node healthy" onclick="showNodeInfo('kafka')">Kafka Broker</div>
+                        <div style="font-size: 12px; color: #999;">↓ Consumer</div>
+                        <div class="map-node healthy" onclick="showNodeInfo('engine')">RiskEngine App</div>
+                        <div style="display: flex; gap: 40px; justify-content: center; width: 100%;">
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                                <div style="font-size: 12px; color: #999;">↓ Inference</div>
+                                <div class="map-node healthy" onclick="showNodeInfo('onnx')">ONNX Model</div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                                <div style="font-size: 12px; color: #999;">↓ Write</div>
+                                <div class="map-node healthy" onclick="showNodeInfo('db')">TimescaleDB</div>
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; color: #999;">↓ Query</div>
+                        <div class="map-node healthy" onclick="showNodeInfo('api')">REST API</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings" class="content-section">
+            <div class="settings-form">
+                <div class="form-group">
+                    <label class="form-label">Refresh Interval (seconds)</label>
+                    <div class="form-description">How often to poll metrics and signals</div>
+                    <input type="number" id="refresh-interval" class="form-input" value="5" min="1" max="60">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Live Mode</label>
+                    <div class="form-description">Enable real-time updates via WebSocket (when available)</div>
+                    <div class="form-toggle">
+                        <div class="toggle-switch on" id="live-mode-toggle" onclick="toggleLiveMode()"></div>
+                        <span>Enabled</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Default Chart Window</label>
+                    <div class="form-description">Time range for performance charts</div>
+                    <select id="chart-window" class="form-input">
+                        <option value="1h">Last 1 Hour</option>
+                        <option value="6h" selected>Last 6 Hours</option>
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Visible Chart Series</label>
+                    <div class="form-description">Select which metrics to display</div>
+                    <div class="form-toggle">
+                        <input type="checkbox" id="series-throughput" checked style="width: auto;">
+                        <label for="series-throughput">Throughput</label>
+                    </div>
+                    <div class="form-toggle">
+                        <input type="checkbox" id="series-p50" checked style="width: auto;">
+                        <label for="series-p50">P50 Latency</label>
+                    </div>
+                    <div class="form-toggle">
+                        <input type="checkbox" id="series-p95" checked style="width: auto;">
+                        <label for="series-p95">P95 Latency</label>
+                    </div>
+                    <div class="form-toggle">
+                        <input type="checkbox" id="series-p99" checked style="width: auto;">
+                        <label for="series-p99">P99 Latency</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Theme</label>
+                    <div class="form-description">Color scheme preference</div>
+                    <select id="theme-select" class="form-input">
+                        <option value="light" selected>Light</option>
+                        <option value="dark">Dark (Coming Soon)</option>
+                    </select>
+                </div>
+
+                <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signal Detail Drawer -->
+    <div class="overlay" id="drawer-overlay" onclick="closeSignalDetail()"></div>
+    <div class="drawer" id="signal-drawer">
+        <div class="drawer-header">
+            <div class="drawer-title">Signal Details</div>
+            <button class="drawer-close" onclick="closeSignalDetail()">✕</button>
+        </div>
+        <div class="drawer-content">
+            <div class="drawer-field">
+                <label class="drawer-label">Event ID</label>
+                <div class="drawer-value" id="detail-event-id">EVT-001</div>
+            </div>
+            <div class="drawer-field">
+                <label class="drawer-label">Timestamp</label>
+                <div class="drawer-value" id="detail-timestamp">2026-05-30 14:32:15</div>
+            </div>
+            <div class="drawer-field">
+                <label class="drawer-label">Ticker</label>
+                <div class="drawer-value" id="detail-ticker">AAPL</div>
+            </div>
+            <div class="drawer-field">
+                <label class="drawer-label">Raw Score</label>
+                <div class="drawer-value" id="detail-raw-score">0.92</div>
+            </div>
+            <div class="drawer-field">
+                <label class="drawer-label">Normalized Risk Score</label>
+                <div class="drawer-value" id="detail-risk-score">0.87</div>
+            </div>
+            <div class="drawer-field">
+                <label class="drawer-label">Risk Label</label>
+                <div class="drawer-value" id="detail-label">Critical</div>
+            </div>
+            <div class="drawer-field">
+                <label class="drawer-label">Inference Latency (ms)</label>
+                <div class="drawer-value" id="detail-latency">187</div>
+            </div>
+            <div class="drawer-field">
+                <label class="drawer-label">Status</label>
+                <div class="drawer-value" id="detail-status">Processed</div>
+            </div>
+            <div class="drawer-field">
+                <label class="drawer-label">Feature Summary</label>
+                <div class="drawer-value" id="detail-features">{"price_change": -2.3, "volume_spike": 1.8, "volatility": 0.45, "sentiment": -0.62}</div>
+            </div>
+            <div class="drawer-field">
+                <label class="drawer-label">Full Event Payload</label>
+                <div class="drawer-value" id="detail-payload">{"event_id": "EVT-001", "ticker": "AAPL", "timestamp": "2026-05-30T14:32:15Z", "market_data": {...}}</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let currentTab = 'overview';
+        let performanceChart = null;
+        let latencyChart = null;
+        let throughputChart = null;
+        let errorChart = null;
+        let visibleSeries = {
+            throughput: true,
+            p50: true,
+            p95: true,
+            p99: true
+        };
+
+        // Tab Navigation
+        document.querySelectorAll('.nav-item').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const tab = this.dataset.tab;
+                navigateTab(tab);
+            });
+        });
+
+        function navigateTab(tab) {
+            // Hide all sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+
+            // Show selected section
+            document.getElementById(tab).classList.add('active');
+
+            // Update nav buttons
+            document.querySelectorAll('.nav-item').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+            currentTab = tab;
+
+            // Initialize charts if needed
+            if (tab === 'overview' && !performanceChart) {
+                setTimeout(() => initPerformanceChart(), 100);
+            } else if (tab === 'performance' && !latencyChart) {
+                setTimeout(() => {
+                    initLatencyChart();
+                    initThroughputChart();
+                    initErrorChart();
+                }, 100);
+            }
+        }
+
+        // Chart Initialization
+        function initPerformanceChart() {
+            const ctx = document.getElementById('performanceChart');
+            if (!ctx) return;
+
+            const data = generateChartData();
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        {
+                            label: 'Throughput (events/sec)',
+                            data: data.throughput,
+                            borderColor: '#0066cc',
+                            backgroundColor: 'rgba(0, 102, 204, 0.05)',
+                            tension: 0.3,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'P50 Latency (ms)',
+                            data: data.p50,
+                            borderColor: '#22c55e',
+                            backgroundColor: 'rgba(34, 197, 94, 0.05)',
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        },
+                        {
+                            label: 'P95 Latency (ms)',
+                            data: data.p95,
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.05)',
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        },
+                        {
+                            label: 'P99 Latency (ms)',
+                            data: data.p99,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: { size: 13, weight: 'bold' },
+                            bodyFont: { size: 12 },
+                            borderColor: '#e0e0e0',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Throughput (events/sec)', font: { size: 11 } },
+                            grid: { color: '#f0f0f0' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Latency (ms)', font: { size: 11 } },
+                            grid: { drawOnChartArea: false }
+                        },
+                        x: {
+                            grid: { color: '#f0f0f0' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initLatencyChart() {
+            const ctx = document.getElementById('latencyChart');
+            if (!ctx) return;
+
+            const data = generateChartData();
+            latencyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        {
+                            label: 'P50 Latency',
+                            data: data.p50,
+                            borderColor: '#22c55e',
+                            backgroundColor: 'rgba(34, 197, 94, 0.05)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'P95 Latency',
+                            data: data.p95,
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.05)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'P99 Latency',
+                            data: data.p99,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: { size: 13, weight: 'bold' },
+                            bodyFont: { size: 12 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Latency (ms)', font: { size: 11 } },
+                            grid: { color: '#f0f0f0' }
+                        },
+                        x: {
+                            grid: { color: '#f0f0f0' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initThroughputChart() {
+            const ctx = document.getElementById('throughputChart');
+            if (!ctx) return;
+
+            const data = generateChartData();
+            throughputChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        {
+                            label: 'Throughput (events/sec)',
+                            data: data.throughput,
+                            borderColor: '#0066cc',
+                            backgroundColor: 'rgba(0, 102, 204, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: { size: 13, weight: 'bold' },
+                            bodyFont: { size: 12 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Events/sec', font: { size: 11 } },
+                            grid: { color: '#f0f0f0' }
+                        },
+                        x: {
+                            grid: { color: '#f0f0f0' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initErrorChart() {
+            const ctx = document.getElementById('errorChart');
+            if (!ctx) return;
+
+            const data = generateChartData();
+            errorChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        {
+                            label: 'Failed Events',
+                            data: data.errors,
+                            backgroundColor: '#ef4444',
+                            borderColor: '#dc2626',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: { size: 13, weight: 'bold' },
+                            bodyFont: { size: 12 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Failed Events', font: { size: 11 } },
+                            grid: { color: '#f0f0f0' }
+                        },
+                        x: {
+                            grid: { color: '#f0f0f0' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function generateChartData() {
+            const labels = [];
+            const now = new Date();
+            for (let i = 23; i >= 0; i--) {
+                const time = new Date(now - i * 60 * 60 * 1000);
+                labels.push(time.getHours() + ':00');
+            }
+
+            return {
+                labels: labels,
+                throughput: Array.from({length: 24}, () => Math.floor(Math.random() * 50 + 120)),
+                p50: Array.from({length: 24}, () => Math.floor(Math.random() * 30 + 80)),
+                p95: Array.from({length: 24}, () => Math.floor(Math.random() * 40 + 120)),
+                p99: Array.from({length: 24}, () => Math.floor(Math.random() * 50 + 180)),
+                errors: Array.from({length: 24}, () => Math.floor(Math.random() * 20))
+            };
+        }
+
+        // Signal Detail Drawer
+        function showSignalDetail(eventId) {
+            const signalData = {
+                'EVT-001': {
+                    timestamp: '2026-05-30 14:32:15',
+                    ticker: 'AAPL',
+                    rawScore: '0.92',
+                    riskScore: '0.87',
+                    label: 'Critical',
+                    latency: '187',
+                    status: 'Processed',
+                    features: '{"price_change": -2.3, "volume_spike": 1.8, "volatility": 0.45, "sentiment": -0.62}',
+                    payload: '{"event_id": "EVT-001", "ticker": "AAPL", "timestamp": "2026-05-30T14:32:15Z", "price": 189.45, "volume": 2450000}'
+                },
+                'EVT-002': {
+                    timestamp: '2026-05-30 14:32:10',
+                    ticker: 'MSFT',
+                    rawScore: '0.68',
+                    riskScore: '0.62',
+                    label: 'Elevated',
+                    latency: '156',
+                    status: 'Processed',
+                    features: '{"price_change": 1.2, "volume_spike": 0.9, "volatility": 0.32, "sentiment": 0.15}',
+                    payload: '{"event_id": "EVT-002", "ticker": "MSFT", "timestamp": "2026-05-30T14:32:10Z", "price": 425.30, "volume": 1850000}'
+                }
+            };
+
+            const data = signalData[eventId] || signalData['EVT-001'];
+            document.getElementById('detail-event-id').textContent = eventId;
+            document.getElementById('detail-timestamp').textContent = data.timestamp;
+            document.getElementById('detail-ticker').textContent = data.ticker;
+            document.getElementById('detail-raw-score').textContent = data.rawScore;
+            document.getElementById('detail-risk-score').textContent = data.riskScore;
+            document.getElementById('detail-label').textContent = data.label;
+            document.getElementById('detail-latency').textContent = data.latency;
+            document.getElementById('detail-status').textContent = data.status;
+            document.getElementById('detail-features').textContent = data.features;
+            document.getElementById('detail-payload').textContent = data.payload;
+
+            document.getElementById('signal-drawer').classList.add('open');
+            document.getElementById('drawer-overlay').classList.add('open');
+        }
+
+        function closeSignalDetail() {
+            document.getElementById('signal-drawer').classList.remove('open');
+            document.getElementById('drawer-overlay').classList.remove('open');
+        }
+
+        // Filters and Sorting
+        function applyFilters() {
+            // Placeholder for filter logic
+            console.log('Filters applied');
+        }
+
+        function resetFilters() {
+            document.getElementById('ticker-filter').value = '';
+            document.getElementById('label-filter').value = '';
+            document.getElementById('status-filter').value = '';
+            applyFilters();
+        }
+
+        function sortTable(column) {
+            console.log('Sorting by:', column);
+        }
+
+        function exportCSV() {
+            alert('CSV export feature coming soon');
+        }
+
+        // Refresh Functions
+        function refreshMetrics() {
+            updateLastRefreshTime();
+            console.log('Metrics refreshed');
+        }
+
+        function refreshSignals() {
+            updateLastRefreshTime();
+            console.log('Signals refreshed');
+        }
+
+        function refreshPerformance() {
+            console.log('Performance data refreshed');
+        }
+
+        function updateLastRefreshTime() {
+            const now = new Date();
+            document.getElementById('last-update').textContent = now.toLocaleTimeString();
+        }
+
+        // Chart Series Toggle
+        function toggleSeries(series) {
+            visibleSeries[series] = !visibleSeries[series];
+            console.log('Series toggled:', series, visibleSeries[series]);
+        }
+
+        // Health Functions
+        function retryConnection(service) {
+            console.log('Retrying connection for:', service);
+            alert('Retrying connection to ' + service);
+        }
+
+        function showNodeInfo(node) {
+            console.log('Node info for:', node);
+            alert('Node: ' + node + '\nStatus: Healthy\nLatency: Normal');
+        }
+
+        // Settings
+        function toggleLiveMode() {
+            const toggle = document.getElementById('live-mode-toggle');
+            toggle.classList.toggle('on');
+        }
+
+        function saveSettings() {
+            const interval = document.getElementById('refresh-interval').value;
+            const window = document.getElementById('chart-window').value;
+            console.log('Settings saved:', { interval, window });
+            alert('Settings saved successfully');
+        }
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            updateLastRefreshTime();
+            initPerformanceChart();
+        });
+    </script>
+</body>
+</html>

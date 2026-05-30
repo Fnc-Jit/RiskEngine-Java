@@ -1,0 +1,82 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.5'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.jitraj'
+version = '1.0.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.kafka:spring-kafka'
+
+    // Database
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // ONNX Runtime for in-process inference
+    implementation 'com.microsoft.onnxruntime:onnxruntime:1.18.0'
+
+    // HdrHistogram for latency tracking
+    implementation 'org.hdrhistogram:HdrHistogram:2.2.2'
+
+    // Jackson for JSON
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+
+
+    // Testing
+    testImplementation 'org.mockito:mockito-core:5.14.2'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+    testImplementation 'net.bytebuddy:byte-buddy:1.15.10'
+    testImplementation 'net.bytebuddy:byte-buddy-agent:1.15.10'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:kafka'
+    testRuntimeOnly 'com.h2database:h2'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// Benchmark task — drives EventGenerator at target rate and collects p50/p95/p99 from /metrics
+tasks.register('benchmark', JavaExec) {
+    group = 'verification'
+    description = 'Runs the RiskEngine benchmark harness. Usage: ./gradlew benchmark -PtargetRate=1000 -Pseed=42'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.jitraj.riskengine.benchmark.BenchmarkHarness'
+
+    def rate = project.findProperty('targetRate') ?: '1000'
+    def benchSeed = project.findProperty('seed') ?: '42'
+    def apiBase = project.findProperty('apiBase') ?: 'http://localhost:8080'
+    def generatorScript = project.findProperty('generatorScript') ?: 'scripts/event_generator.py'
+
+    systemProperty 'benchmark.targetRate', rate
+    systemProperty 'benchmark.seed', benchSeed
+    systemProperty 'benchmark.apiBase', apiBase
+    systemProperty 'benchmark.generatorScript', generatorScript
+
+    doFirst {
+        println "Starting benchmark: targetRate=${rate}, seed=${benchSeed}, apiBase=${apiBase}"
+        println "Ensure RiskEngine is running (docker compose up) before running this task."
+    }
+}
