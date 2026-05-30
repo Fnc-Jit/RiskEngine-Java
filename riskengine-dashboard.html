@@ -773,33 +773,33 @@
             <div class="kpi-row">
                 <div class="kpi-card" onclick="showSignalDetail('EVT-001')">
                     <div class="kpi-label">Total Events Consumed</div>
-                    <div class="kpi-value">1,245,680</div>
-                    <div class="kpi-delta positive">↑ 2.3% from yesterday</div>
+                    <div class="kpi-value" id="kpi-consumed">—</div>
+                    <div class="kpi-delta positive" id="kpi-consumed-delta"></div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Total Events Scored</div>
-                    <div class="kpi-value">1,243,920</div>
-                    <div class="kpi-delta positive">↑ 2.1% from yesterday</div>
+                    <div class="kpi-value" id="kpi-scored">—</div>
+                    <div class="kpi-delta positive" id="kpi-scored-delta"></div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Failed Events</div>
-                    <div class="kpi-value">1,760</div>
-                    <div class="kpi-delta negative">↑ 0.2% from yesterday</div>
+                    <div class="kpi-value" id="kpi-failed">—</div>
+                    <div class="kpi-delta negative" id="kpi-failed-delta"></div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Current Throughput</div>
-                    <div class="kpi-value">145.2</div>
+                    <div class="kpi-value" id="kpi-throughput">—</div>
                     <div class="kpi-delta">events/sec</div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">P99 Latency</div>
-                    <div class="kpi-value">234</div>
-                    <div class="kpi-delta warning">↑ 12ms from yesterday</div>
+                    <div class="kpi-value" id="kpi-p99">—</div>
+                    <div class="kpi-delta warning" id="kpi-p99-delta"></div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">DB Write Success Rate</div>
-                    <div class="kpi-value">99.86%</div>
-                    <div class="kpi-delta positive">↑ 0.04% from yesterday</div>
+                    <div class="kpi-value" id="kpi-db-rate">—</div>
+                    <div class="kpi-delta positive" id="kpi-db-delta"></div>
                 </div>
             </div>
 
@@ -1332,347 +1332,305 @@
     </div>
 
     <script>
-        // Global state
+        // ─── Configuration ────────────────────────────────────────────────────────
+        const API_BASE = 'http://localhost:8080';
+        const WS_URL   = 'ws://localhost:8080/ws/dashboard';
+        const MAX_CHART_POINTS = 60;   // keep last 60 data points on charts
+        const FEED_SIZE = 50;          // max rows in live signal feed
+
+        // ─── Global state ─────────────────────────────────────────────────────────
         let currentTab = 'overview';
         let performanceChart = null;
         let latencyChart = null;
         let throughputChart = null;
         let errorChart = null;
-        let visibleSeries = {
-            throughput: true,
-            p50: true,
-            p95: true,
-            p99: true
-        };
+        let visibleSeries = { throughput: true, p50: true, p95: true, p99: true };
 
-        // Tab Navigation
-        document.querySelectorAll('.nav-item').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const tab = this.dataset.tab;
-                navigateTab(tab);
-            });
-        });
+        // Live data buffers
+        let metricsHistory = [];   // [{time, throughput, p50, p95, p99, errors}]
+        let signalFeed = [];       // latest RiskSignal objects from WS / REST
+        let allSignals = [];       // full signals list for the Signals tab
+        let wsConnection = null;
+        let restPollTimer = null;
+        let liveModeEnabled = true;
 
-        function navigateTab(tab) {
-            // Hide all sections
-            document.querySelectorAll('.content-section').forEach(section => {
-                section.classList.remove('active');
-            });
+        // ─── REST helpers ─────────────────────────────────────────────────────────
+        async function apiFetch(path) {
+            const res = await fetch(API_BASE + path);
+            if (!res.ok) throw new Error(`HTTP ${res.status} from ${path}`);
+            return res.json();
+        }
 
-            // Show selected section
-            document.getElementById(tab).classList.add('active');
+        // ─── WebSocket ────────────────────────────────────────────────────────────
+        function connectWebSocket() {
+            if (wsConnection && wsConnection.readyState <= 1) return;
+            try {
+                wsConnection = new WebSocket(WS_URL);
 
-            // Update nav buttons
-            document.querySelectorAll('.nav-item').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+                wsConnection.onopen = () => {
+                    console.log('[WS] connected');
+                    updateConnectionStatus('ws', true);
+                };
 
-            currentTab = tab;
+                wsConnection.onmessage = (evt) => {
+                    try {
+                        const msg = JSON.parse(evt.data);
+                        // Server sends either a MetricsResponse or a RiskSignal
+                        if ('eventsConsumed' in msg) {
+                            handleMetricsUpdate(msg);
+                        } else if ('eventId' in msg) {
+                            handleSignalUpdate(msg);
+                        }
+                    } catch (e) { /* ignore parse errors */ }
+                };
 
-            // Initialize charts if needed
-            if (tab === 'overview' && !performanceChart) {
-                setTimeout(() => initPerformanceChart(), 100);
-            } else if (tab === 'performance' && !latencyChart) {
-                setTimeout(() => {
-                    initLatencyChart();
-                    initThroughputChart();
-                    initErrorChart();
-                }, 100);
+                wsConnection.onclose = () => {
+                    console.log('[WS] disconnected — will retry in 5s');
+                    updateConnectionStatus('ws', false);
+                    setTimeout(connectWebSocket, 5000);
+                };
+
+                wsConnection.onerror = () => {
+                    wsConnection.close();
+                };
+            } catch (e) {
+                console.warn('[WS] could not connect:', e.message);
             }
         }
 
-        // Chart Initialization
-        function initPerformanceChart() {
-            const ctx = document.getElementById('performanceChart');
-            if (!ctx) return;
-
-            const data = generateChartData();
-            performanceChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.labels,
-                    datasets: [
-                        {
-                            label: 'Throughput (events/sec)',
-                            data: data.throughput,
-                            borderColor: '#0066cc',
-                            backgroundColor: 'rgba(0, 102, 204, 0.05)',
-                            tension: 0.3,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'P50 Latency (ms)',
-                            data: data.p50,
-                            borderColor: '#22c55e',
-                            backgroundColor: 'rgba(34, 197, 94, 0.05)',
-                            tension: 0.3,
-                            yAxisID: 'y1'
-                        },
-                        {
-                            label: 'P95 Latency (ms)',
-                            data: data.p95,
-                            borderColor: '#f59e0b',
-                            backgroundColor: 'rgba(245, 158, 11, 0.05)',
-                            tension: 0.3,
-                            yAxisID: 'y1'
-                        },
-                        {
-                            label: 'P99 Latency (ms)',
-                            data: data.p99,
-                            borderColor: '#ef4444',
-                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
-                            tension: 0.3,
-                            yAxisID: 'y1'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            padding: 12,
-                            titleFont: { size: 13, weight: 'bold' },
-                            bodyFont: { size: 12 },
-                            borderColor: '#e0e0e0',
-                            borderWidth: 1
-                        }
-                    },
-                    scales: {
-                        y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            title: { display: true, text: 'Throughput (events/sec)', font: { size: 11 } },
-                            grid: { color: '#f0f0f0' }
-                        },
-                        y1: {
-                            type: 'linear',
-                            display: true,
-                            position: 'right',
-                            title: { display: true, text: 'Latency (ms)', font: { size: 11 } },
-                            grid: { drawOnChartArea: false }
-                        },
-                        x: {
-                            grid: { color: '#f0f0f0' }
-                        }
-                    }
-                }
-            });
+        function updateConnectionStatus(type, ok) {
+            // Update the WS indicator in the navbar if present
+            const el = document.getElementById('ws-status');
+            if (el) el.textContent = ok ? '● Live' : '○ Polling';
         }
 
-        function initLatencyChart() {
-            const ctx = document.getElementById('latencyChart');
-            if (!ctx) return;
-
-            const data = generateChartData();
-            latencyChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.labels,
-                    datasets: [
-                        {
-                            label: 'P50 Latency',
-                            data: data.p50,
-                            borderColor: '#22c55e',
-                            backgroundColor: 'rgba(34, 197, 94, 0.05)',
-                            tension: 0.3
-                        },
-                        {
-                            label: 'P95 Latency',
-                            data: data.p95,
-                            borderColor: '#f59e0b',
-                            backgroundColor: 'rgba(245, 158, 11, 0.05)',
-                            tension: 0.3
-                        },
-                        {
-                            label: 'P99 Latency',
-                            data: data.p99,
-                            borderColor: '#ef4444',
-                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
-                            tension: 0.3
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            padding: 12,
-                            titleFont: { size: 13, weight: 'bold' },
-                            bodyFont: { size: 12 }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            title: { display: true, text: 'Latency (ms)', font: { size: 11 } },
-                            grid: { color: '#f0f0f0' }
-                        },
-                        x: {
-                            grid: { color: '#f0f0f0' }
-                        }
-                    }
-                }
+        // ─── Metrics update ───────────────────────────────────────────────────────
+        function handleMetricsUpdate(m) {
+            const now = new Date().toLocaleTimeString();
+            metricsHistory.push({
+                time: now,
+                throughput: m.throughputEps,
+                p50: m.p50Ms,
+                p95: m.p95Ms,
+                p99: m.p99Ms,
+                errors: m.eventsFailed
             });
+            if (metricsHistory.length > MAX_CHART_POINTS) metricsHistory.shift();
+
+            updateKpiCards(m);
+            pushChartPoint(m, now);
+            updateHealthTab(m);
         }
 
-        function initThroughputChart() {
-            const ctx = document.getElementById('throughputChart');
-            if (!ctx) return;
-
-            const data = generateChartData();
-            throughputChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.labels,
-                    datasets: [
-                        {
-                            label: 'Throughput (events/sec)',
-                            data: data.throughput,
-                            borderColor: '#0066cc',
-                            backgroundColor: 'rgba(0, 102, 204, 0.1)',
-                            fill: true,
-                            tension: 0.3
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            padding: 12,
-                            titleFont: { size: 13, weight: 'bold' },
-                            bodyFont: { size: 12 }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            title: { display: true, text: 'Events/sec', font: { size: 11 } },
-                            grid: { color: '#f0f0f0' }
-                        },
-                        x: {
-                            grid: { color: '#f0f0f0' }
-                        }
-                    }
-                }
-            });
+        function updateKpiCards(m) {
+            setKpi('kpi-consumed',   fmt(m.eventsConsumed));
+            setKpi('kpi-scored',     fmt(m.eventsScored));
+            setKpi('kpi-failed',     fmt(m.eventsFailed));
+            setKpi('kpi-throughput', m.throughputEps.toFixed(1));
+            setKpi('kpi-p99',        m.p99Ms.toFixed(1) + ' ms');
+            const total = m.dbWriteSuccess + m.dbWriteFailures;
+            const rate  = total > 0 ? ((m.dbWriteSuccess / total) * 100).toFixed(2) : '100.00';
+            setKpi('kpi-db-rate', rate + '%');
         }
 
-        function initErrorChart() {
-            const ctx = document.getElementById('errorChart');
-            if (!ctx) return;
-
-            const data = generateChartData();
-            errorChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: data.labels,
-                    datasets: [
-                        {
-                            label: 'Failed Events',
-                            data: data.errors,
-                            backgroundColor: '#ef4444',
-                            borderColor: '#dc2626',
-                            borderWidth: 1
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            padding: 12,
-                            titleFont: { size: 13, weight: 'bold' },
-                            bodyFont: { size: 12 }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            title: { display: true, text: 'Failed Events', font: { size: 11 } },
-                            grid: { color: '#f0f0f0' }
-                        },
-                        x: {
-                            grid: { color: '#f0f0f0' }
-                        }
-                    }
-                }
-            });
+        function setKpi(id, val) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
         }
 
-        function generateChartData() {
-            const labels = [];
-            const now = new Date();
-            for (let i = 23; i >= 0; i--) {
-                const time = new Date(now - i * 60 * 60 * 1000);
-                labels.push(time.getHours() + ':00');
+        function fmt(n) { return Number(n).toLocaleString(); }
+
+        function pushChartPoint(m, label) {
+            const push = (chart, datasetIdx, val) => {
+                if (!chart) return;
+                chart.data.labels.push(label);
+                chart.data.datasets[datasetIdx].data.push(val);
+                if (chart.data.labels.length > MAX_CHART_POINTS) {
+                    chart.data.labels.shift();
+                    chart.data.datasets.forEach(ds => ds.data.shift());
+                }
+                chart.update('none');
+            };
+            push(performanceChart, 0, m.throughputEps);
+            push(performanceChart, 1, m.p50Ms);
+            push(performanceChart, 2, m.p95Ms);
+            push(performanceChart, 3, m.p99Ms);
+            push(latencyChart, 0, m.p50Ms);
+            push(latencyChart, 1, m.p95Ms);
+            push(latencyChart, 2, m.p99Ms);
+            push(throughputChart, 0, m.throughputEps);
+            push(errorChart, 0, m.eventsFailed);
+        }
+
+        function updateHealthTab(m) {
+            setKpi('health-model-version', m.modelVersion || '—');
+            setKpi('health-schema-version', m.featureSchemaVersion || '—');
+        }
+
+        // ─── Signal update ────────────────────────────────────────────────────────
+        function handleSignalUpdate(s) {
+            signalFeed.unshift(s);
+            if (signalFeed.length > FEED_SIZE) signalFeed.pop();
+            renderOverviewSignals(signalFeed.slice(0, 5));
+            // Also prepend to allSignals for the Signals tab
+            allSignals.unshift(s);
+            if (currentTab === 'signals') renderSignalsTable(allSignals);
+        }
+
+        // ─── REST polling fallback ────────────────────────────────────────────────
+        async function pollMetrics() {
+            try {
+                const m = await apiFetch('/metrics');
+                handleMetricsUpdate(m);
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            } catch (e) {
+                console.warn('[REST] /metrics failed:', e.message);
+            }
+        }
+
+        async function pollSignals() {
+            try {
+                const signals = await apiFetch('/signals/latest?limit=50');
+                allSignals = signals;
+                signalFeed = signals.slice(0, FEED_SIZE);
+                renderOverviewSignals(signals.slice(0, 5));
+                if (currentTab === 'signals') renderSignalsTable(signals);
+            } catch (e) {
+                console.warn('[REST] /signals/latest failed:', e.message);
+            }
+        }
+
+        function startPolling(intervalSec) {
+            stopPolling();
+            pollMetrics();
+            pollSignals();
+            restPollTimer = setInterval(() => {
+                pollMetrics();
+                pollSignals();
+            }, intervalSec * 1000);
+        }
+
+        function stopPolling() {
+            if (restPollTimer) { clearInterval(restPollTimer); restPollTimer = null; }
+        }
+
+        // ─── Render helpers ───────────────────────────────────────────────────────
+        function labelBadge(label) {
+            const map = { CRITICAL: 'status-critical', ELEVATED: 'status-warning', NORMAL: 'status-healthy' };
+            const cls = map[(label || '').toUpperCase()] || 'status-healthy';
+            return `<span class="status-badge ${cls}">${label || '—'}</span>`;
+        }
+
+        function statusBadge(status) {
+            const map = { SCORED: 'status-healthy', FAILED: 'status-critical', WARMING_UP: 'status-degraded' };
+            const cls = map[(status || '').toUpperCase()] || 'status-healthy';
+            return `<span class="status-badge ${cls}">${status || '—'}</span>`;
+        }
+
+        function riskScoreClass(score) {
+            if (score >= 85) return 'high';
+            if (score >= 50) return 'medium';
+            return 'low';
+        }
+
+        function fmtTime(ts) {
+            if (!ts) return '—';
+            return new Date(ts).toLocaleString();
+        }
+
+        function renderOverviewSignals(signals) {
+            const tbody = document.getElementById('overview-signals');
+            if (!tbody) return;
+            if (!signals || signals.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="empty-state-text">No signals yet — waiting for data...</div></td></tr>';
+                return;
+            }
+            tbody.innerHTML = signals.map(s => `
+                <tr onclick="showSignalDetail('${s.eventId}')">
+                    <td>${fmtTime(s.timestamp)}</td>
+                    <td>${s.ticker || '—'}</td>
+                    <td class="risk-score ${riskScoreClass(s.riskScore)}">${(s.riskScore || 0).toFixed(1)}</td>
+                    <td>${labelBadge(s.label)}</td>
+                    <td>${(s.latencyMs || 0).toFixed(1)}</td>
+                    <td>${statusBadge(s.status)}</td>
+                </tr>`).join('');
+        }
+
+        function renderSignalsTable(signals) {
+            const tbody = document.getElementById('signals-table');
+            if (!tbody) return;
+            const ticker = (document.getElementById('ticker-filter')?.value || '').toUpperCase();
+            const label  = (document.getElementById('label-filter')?.value || '').toUpperCase();
+            const status = (document.getElementById('status-filter')?.value || '').toUpperCase();
+
+            const filtered = signals.filter(s => {
+                if (ticker && !(s.ticker || '').toUpperCase().includes(ticker)) return false;
+                if (label  && (s.label  || '').toUpperCase() !== label)  return false;
+                if (status && (s.status || '').toUpperCase() !== status) return false;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><div class="empty-state-text">No signals match the current filters.</div></td></tr>';
+                return;
             }
 
-            return {
-                labels: labels,
-                throughput: Array.from({length: 24}, () => Math.floor(Math.random() * 50 + 120)),
-                p50: Array.from({length: 24}, () => Math.floor(Math.random() * 30 + 80)),
-                p95: Array.from({length: 24}, () => Math.floor(Math.random() * 40 + 120)),
-                p99: Array.from({length: 24}, () => Math.floor(Math.random() * 50 + 180)),
-                errors: Array.from({length: 24}, () => Math.floor(Math.random() * 20))
-            };
+            tbody.innerHTML = filtered.map(s => `
+                <tr>
+                    <td>${s.eventId || '—'}</td>
+                    <td>${fmtTime(s.timestamp)}</td>
+                    <td>${s.ticker || '—'}</td>
+                    <td class="risk-score">${s.rawScore != null ? s.rawScore.toFixed(4) : '—'}</td>
+                    <td class="risk-score ${riskScoreClass(s.riskScore)}">${(s.riskScore || 0).toFixed(1)}</td>
+                    <td>${labelBadge(s.label)}</td>
+                    <td>${(s.latencyMs || 0).toFixed(1)}</td>
+                    <td>${statusBadge(s.status)}</td>
+                    <td><button onclick="showSignalDetail('${s.eventId}')">Details</button></td>
+                </tr>`).join('');
         }
 
-        // Signal Detail Drawer
-        function showSignalDetail(eventId) {
-            const signalData = {
-                'EVT-001': {
-                    timestamp: '2026-05-30 14:32:15',
-                    ticker: 'AAPL',
-                    rawScore: '0.92',
-                    riskScore: '0.87',
-                    label: 'Critical',
-                    latency: '187',
-                    status: 'Processed',
-                    features: '{"price_change": -2.3, "volume_spike": 1.8, "volatility": 0.45, "sentiment": -0.62}',
-                    payload: '{"event_id": "EVT-001", "ticker": "AAPL", "timestamp": "2026-05-30T14:32:15Z", "price": 189.45, "volume": 2450000}'
-                },
-                'EVT-002': {
-                    timestamp: '2026-05-30 14:32:10',
-                    ticker: 'MSFT',
-                    rawScore: '0.68',
-                    riskScore: '0.62',
-                    label: 'Elevated',
-                    latency: '156',
-                    status: 'Processed',
-                    features: '{"price_change": 1.2, "volume_spike": 0.9, "volatility": 0.32, "sentiment": 0.15}',
-                    payload: '{"event_id": "EVT-002", "ticker": "MSFT", "timestamp": "2026-05-30T14:32:10Z", "price": 425.30, "volume": 1850000}'
-                }
-            };
+        // ─── Health check ─────────────────────────────────────────────────────────
+        async function checkHealth() {
+            try {
+                const h = await apiFetch('/health');
+                updateHealthBlock('spring', h.status === 'UP' ? 'healthy' : 'degraded', h.status);
+                updateHealthBlock('db',     h.database === 'UP' ? 'healthy' : 'down',    h.database);
+                updateHealthBlock('model',  h.onnxModel === 'LOADED' ? 'healthy' : 'degraded', h.onnxModel);
+            } catch (e) {
+                updateHealthBlock('spring', 'down', 'Unreachable');
+            }
+        }
 
-            const data = signalData[eventId] || signalData['EVT-001'];
-            document.getElementById('detail-event-id').textContent = eventId;
-            document.getElementById('detail-timestamp').textContent = data.timestamp;
-            document.getElementById('detail-ticker').textContent = data.ticker;
-            document.getElementById('detail-raw-score').textContent = data.rawScore;
-            document.getElementById('detail-risk-score').textContent = data.riskScore;
-            document.getElementById('detail-label').textContent = data.label;
-            document.getElementById('detail-latency').textContent = data.latency;
-            document.getElementById('detail-status').textContent = data.status;
-            document.getElementById('detail-features').textContent = data.features;
-            document.getElementById('detail-payload').textContent = data.payload;
+        function updateHealthBlock(id, cssClass, text) {
+            const el = document.getElementById('health-status-' + id);
+            if (!el) return;
+            el.className = 'status-badge status-' + cssClass;
+            el.textContent = text;
+        }
+
+        // (Tab navigation and chart init are defined below in the live data section)
+
+        // ─── Signal Detail Drawer ─────────────────────────────────────────────────
+        async function showSignalDetail(eventId) {
+            // Try live API first, fall back to cached feed
+            let s = signalFeed.find(x => x.eventId === eventId)
+                 || allSignals.find(x => x.eventId === eventId);
+            if (!s) {
+                try { s = await apiFetch('/signals/' + encodeURIComponent(eventId)); }
+                catch (e) { s = null; }
+            }
+            if (!s) { alert('Signal not found: ' + eventId); return; }
+
+            document.getElementById('detail-event-id').textContent   = s.eventId || eventId;
+            document.getElementById('detail-timestamp').textContent  = fmtTime(s.timestamp);
+            document.getElementById('detail-ticker').textContent     = s.ticker || '—';
+            document.getElementById('detail-raw-score').textContent  = s.rawScore != null ? s.rawScore.toFixed(6) : '—';
+            document.getElementById('detail-risk-score').textContent = s.riskScore != null ? s.riskScore.toFixed(2) : '—';
+            document.getElementById('detail-label').textContent      = s.label || '—';
+            document.getElementById('detail-latency').textContent    = s.latencyMs != null ? s.latencyMs.toFixed(2) + ' ms' : '—';
+            document.getElementById('detail-status').textContent     = s.status || '—';
+            document.getElementById('detail-features').textContent   = '(computed server-side)';
+            document.getElementById('detail-payload').textContent    = JSON.stringify(s, null, 2);
 
             document.getElementById('signal-drawer').classList.add('open');
             document.getElementById('drawer-overlay').classList.add('open');
@@ -1683,82 +1641,198 @@
             document.getElementById('drawer-overlay').classList.remove('open');
         }
 
-        // Filters and Sorting
-        function applyFilters() {
-            // Placeholder for filter logic
-            console.log('Filters applied');
-        }
+        // ─── Filters and Sorting ──────────────────────────────────────────────────
+        function applyFilters() { renderSignalsTable(allSignals); }
 
         function resetFilters() {
             document.getElementById('ticker-filter').value = '';
-            document.getElementById('label-filter').value = '';
+            document.getElementById('label-filter').value  = '';
             document.getElementById('status-filter').value = '';
             applyFilters();
         }
 
-        function sortTable(column) {
-            console.log('Sorting by:', column);
-        }
+        function sortTable(column) { console.log('Sort by:', column); }
 
         function exportCSV() {
-            alert('CSV export feature coming soon');
+            if (!allSignals.length) { alert('No signals to export.'); return; }
+            const header = 'eventId,timestamp,ticker,rawScore,riskScore,label,latencyMs,status';
+            const rows = allSignals.map(s =>
+                [s.eventId, s.timestamp, s.ticker, s.rawScore, s.riskScore, s.label, s.latencyMs, s.status].join(','));
+            const blob = new Blob([header + '\n' + rows.join('\n')], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'risk-signals-' + new Date().toISOString().slice(0,10) + '.csv';
+            a.click();
         }
 
-        // Refresh Functions
-        function refreshMetrics() {
-            updateLastRefreshTime();
-            console.log('Metrics refreshed');
-        }
-
-        function refreshSignals() {
-            updateLastRefreshTime();
-            console.log('Signals refreshed');
-        }
-
-        function refreshPerformance() {
-            console.log('Performance data refreshed');
-        }
+        // ─── Refresh Functions ────────────────────────────────────────────────────
+        function refreshMetrics()     { pollMetrics(); updateLastRefreshTime(); }
+        function refreshSignals()     { pollSignals(); updateLastRefreshTime(); }
+        function refreshPerformance() { pollMetrics(); }
 
         function updateLastRefreshTime() {
-            const now = new Date();
-            document.getElementById('last-update').textContent = now.toLocaleTimeString();
+            const el = document.getElementById('last-update');
+            if (el) el.textContent = new Date().toLocaleTimeString();
         }
 
-        // Chart Series Toggle
+        // ─── Chart Series Toggle ──────────────────────────────────────────────────
         function toggleSeries(series) {
             visibleSeries[series] = !visibleSeries[series];
-            console.log('Series toggled:', series, visibleSeries[series]);
+            if (!performanceChart) return;
+            const idx = { throughput: 0, p50: 1, p95: 2, p99: 3 }[series];
+            if (idx !== undefined) {
+                performanceChart.data.datasets[idx].hidden = !visibleSeries[series];
+                performanceChart.update();
+            }
         }
 
-        // Health Functions
+        // ─── Health Functions ─────────────────────────────────────────────────────
         function retryConnection(service) {
-            console.log('Retrying connection for:', service);
-            alert('Retrying connection to ' + service);
+            checkHealth();
+            if (service === 'ws') connectWebSocket();
         }
 
         function showNodeInfo(node) {
-            console.log('Node info for:', node);
-            alert('Node: ' + node + '\nStatus: Healthy\nLatency: Normal');
+            const labels = {
+                'event-gen': 'Event Generator\nPublishes synthetic market events to Kafka at configured rate.',
+                'kafka':     'Kafka Broker (KRaft)\nTopic: market-events | Partitions: 3',
+                'engine':    'RiskEngine App\nSpring Boot 3 · Java 21 · ONNX Runtime 1.18.0',
+                'onnx':      'ONNX Model\nIsolation Forest · op-set 17 · 720KB',
+                'db':        'TimescaleDB\nHypertable: risk_signals · Index: ticker + time',
+                'api':       'REST API\nEndpoints: /health /signals /metrics'
+            };
+            alert(labels[node] || node);
         }
 
-        // Settings
+        // ─── Settings ─────────────────────────────────────────────────────────────
         function toggleLiveMode() {
             const toggle = document.getElementById('live-mode-toggle');
             toggle.classList.toggle('on');
+            liveModeEnabled = toggle.classList.contains('on');
+            if (liveModeEnabled) {
+                connectWebSocket();
+                startPolling(getRefreshInterval());
+            } else {
+                stopPolling();
+                if (wsConnection) wsConnection.close();
+            }
+        }
+
+        function getRefreshInterval() {
+            return parseInt(document.getElementById('refresh-interval')?.value || '5', 10);
         }
 
         function saveSettings() {
-            const interval = document.getElementById('refresh-interval').value;
-            const window = document.getElementById('chart-window').value;
-            console.log('Settings saved:', { interval, window });
-            alert('Settings saved successfully');
+            const interval = getRefreshInterval();
+            startPolling(interval);
+            alert('Settings saved. Polling every ' + interval + 's.');
         }
 
-        // Initialize
+        // ─── Tab Navigation ───────────────────────────────────────────────────────
+        document.querySelectorAll('.nav-item').forEach(btn => {
+            btn.addEventListener('click', function() {
+                navigateTab(this.dataset.tab);
+            });
+        });
+
+        function navigateTab(tab) {
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+            document.getElementById(tab).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+            currentTab = tab;
+
+            if (tab === 'overview' && !performanceChart) setTimeout(initPerformanceChart, 100);
+            if (tab === 'performance' && !latencyChart) {
+                setTimeout(() => { initLatencyChart(); initThroughputChart(); initErrorChart(); }, 100);
+            }
+            if (tab === 'signals') renderSignalsTable(allSignals);
+            if (tab === 'health')  checkHealth();
+        }
+
+        // ─── Chart Initialization ─────────────────────────────────────────────────
+        function emptyChartData() {
+            return { labels: [], throughput: [], p50: [], p95: [], p99: [], errors: [] };
+        }
+
+        function initPerformanceChart() {
+            const ctx = document.getElementById('performanceChart');
+            if (!ctx) return;
+            const d = emptyChartData();
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: d.labels,
+                    datasets: [
+                        { label: 'Throughput (events/sec)', data: d.throughput, borderColor: '#0066cc', backgroundColor: 'rgba(0,102,204,0.05)', tension: 0.3, yAxisID: 'y' },
+                        { label: 'P50 Latency (ms)',        data: d.p50,        borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.05)',  tension: 0.3, yAxisID: 'y1' },
+                        { label: 'P95 Latency (ms)',        data: d.p95,        borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.05)', tension: 0.3, yAxisID: 'y1' },
+                        { label: 'P99 Latency (ms)',        data: d.p99,        borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.05)',  tension: 0.3, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    animation: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', padding: 12 } },
+                    scales: {
+                        y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Throughput (events/sec)', font: { size: 11 } }, grid: { color: '#f0f0f0' } },
+                        y1: { type: 'linear', position: 'right', title: { display: true, text: 'Latency (ms)',            font: { size: 11 } }, grid: { drawOnChartArea: false } },
+                        x:  { grid: { color: '#f0f0f0' } }
+                    }
+                }
+            });
+        }
+
+        function initLatencyChart() {
+            const ctx = document.getElementById('latencyChart');
+            if (!ctx) return;
+            latencyChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [
+                    { label: 'P50', data: [], borderColor: '#22c55e', tension: 0.3 },
+                    { label: 'P95', data: [], borderColor: '#f59e0b', tension: 0.3 },
+                    { label: 'P99', data: [], borderColor: '#ef4444', tension: 0.3 }
+                ]},
+                options: { responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { title: { display: true, text: 'Latency (ms)', font: { size: 11 } }, grid: { color: '#f0f0f0' } }, x: { grid: { color: '#f0f0f0' } } }
+                }
+            });
+        }
+
+        function initThroughputChart() {
+            const ctx = document.getElementById('throughputChart');
+            if (!ctx) return;
+            throughputChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: 'Throughput', data: [], borderColor: '#0066cc', backgroundColor: 'rgba(0,102,204,0.1)', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { title: { display: true, text: 'Events/sec', font: { size: 11 } }, grid: { color: '#f0f0f0' } }, x: { grid: { color: '#f0f0f0' } } }
+                }
+            });
+        }
+
+        function initErrorChart() {
+            const ctx = document.getElementById('errorChart');
+            if (!ctx) return;
+            errorChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Failed Events', data: [], backgroundColor: '#ef4444', borderColor: '#dc2626', borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, animation: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { title: { display: true, text: 'Failed Events', font: { size: 11 } }, grid: { color: '#f0f0f0' } }, x: { grid: { color: '#f0f0f0' } } }
+                }
+            });
+        }
+
+        // ─── Bootstrap ────────────────────────────────────────────────────────────
         window.addEventListener('DOMContentLoaded', () => {
             updateLastRefreshTime();
             initPerformanceChart();
+            connectWebSocket();
+            startPolling(5);   // poll every 5s as REST fallback
         });
-    </script>
 </body>
 </html>
