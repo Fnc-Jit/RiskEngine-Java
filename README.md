@@ -2,6 +2,7 @@
 
 [![RiskEngine CI](https://github.com/Fnc-Jit/Risk-An/actions/workflows/build.yml/badge.svg)](https://github.com/Fnc-Jit/Risk-An/actions/workflows/build.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/docker-4.x%2B-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
 ---
 
