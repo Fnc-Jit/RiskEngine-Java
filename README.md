@@ -1,5 +1,20 @@
 # RiskEngine + ScenarioForge
 
+[![RiskEngine CI](https://github.com/Fnc-Jit/Risk-An/actions/workflows/build.yml/badge.svg)](https://github.com/Fnc-Jit/Risk-An/actions/workflows/build.yml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
+
+---
+
+## 📄 Research Reference
+
+This project is accompanied by a blog paper that covers the design rationale, architecture decisions, and benchmarking methodology behind RiskEngine and ScenarioForge.
+
+> **[RiskEngine & ScenarioForge — Blog Paper (PDF)](docs/RiskEngine_ScenarioForge_BlogPaper.pdf)**
+>
+> The paper walks through the end-to-end pipeline design: synthetic market event generation with ScenarioForge, in-process ONNX inference with Isolation Forest, TimescaleDB persistence, and real-time dashboard observability. It also covers the benchmarking approach and the reasoning behind key architectural trade-offs.
+
+---
+
 ## Quick Start
 
 Get the full pipeline running in under 5 minutes.

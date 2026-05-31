@@ -1,0 +1,81 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: risk-engine
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:riskengine}
+    username: ${DB_USER:riskengine}
+    password: ${DB_PASSWORD:riskengine}
+    driver-class-name: org.postgresql.Driver
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:risk-engine-group}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      max-poll-records: 500
+
+# Kafka topic configuration
+kafka:
+  topic:
+    market-events: ${KAFKA_TOPIC:market-events}
+  consumer:
+    group-id: ${KAFKA_CONSUMER_GROUP_ID:risk-engine-group}
+
+# Feature extraction configuration
+feature:
+  window:
+    min-samples: ${FEATURE_WINDOW_MIN_SAMPLES:10}
+    size: ${FEATURE_WINDOW_SIZE:50}
+  schema:
+    version: "1.0.0"
+
+# Scoring / ONNX configuration
+scoring:
+  model:
+    path: ${ONNX_MODEL_PATH:model/risk_model.onnx}
+    version: "1.0.0"
+  thread-pool:
+    size: ${SCORING_THREAD_POOL_SIZE:4}
+
+# Risk thresholds
+risk:
+  thresholds:
+    elevated: ${RISK_THRESHOLD_ELEVATED:50}
+    critical: ${RISK_THRESHOLD_CRITICAL:85}
+
+# Parity testing
+parity:
+  epsilon: ${PARITY_EPSILON:1e-5}
+
+# Repository / persistence
+repository:
+  batch-size: ${REPO_BATCH_SIZE:100}
+  max-retries: ${REPO_MAX_RETRIES:3}
+  max-backoff-ms: ${REPO_MAX_BACKOFF_MS:5000}
+
+# Metrics
+metrics:
+  window-seconds: ${METRICS_WINDOW_SECONDS:60}
+
+# Dashboard / WebSocket
+dashboard:
+  websocket:
+    path: ${DASHBOARD_WS_PATH:/ws/dashboard}
+  metrics:
+    push-interval-ms: ${DASHBOARD_METRICS_PUSH_INTERVAL:1000}
+  signal:
+    push-budget-ms: ${DASHBOARD_SIGNAL_PUSH_BUDGET:100}
+  feed:
+    size: ${DASHBOARD_FEED_SIZE:50}
+
+# Logging
+logging:
+  level:
+    com.jitraj.riskengine: INFO
+    org.springframework.kafka: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

@@ -1,0 +1,55 @@
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+kafka:
+  topic:
+    market-events: test-market-events
+  consumer:
+    group-id: test-group
+
+feature:
+  window:
+    min-samples: 3
+    size: 10
+  schema:
+    version: "1.0.0-test"
+
+scoring:
+  model:
+    path: "model/risk_model.onnx"
+    version: "1.0.0-test"
+  thread-pool:
+    size: 2
+
+risk:
+  thresholds:
+    elevated: 50
+    critical: 85
+
+parity:
+  epsilon: 1e-5
+
+repository:
+  batch-size: 10
+  max-retries: 1
+  max-backoff-ms: 100
+
+metrics:
+  window-seconds: 10
+
+dashboard:
+  websocket:
+    path: /ws/dashboard
+  metrics:
+    push-interval-ms: 5000
+  signal:
+    push-budget-ms: 100
+  feed:
+    size: 10
